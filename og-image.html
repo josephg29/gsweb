@@ -1,0 +1,142 @@
+<!doctype html>
+<!--
+  Open Graph share card for gradeskill.dev — 1200×630.
+  Render to og-image.png with:
+    npx --yes playwright screenshot --viewport-size=1200,630 og-image.html og-image.png
+  (or any 1200×630 headless screenshot). Mirrors the site hero in the
+  OpenCode terminal theme. Static, self-contained, no CDN.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<style>
+  :root {
+    --ink-0: #0a0a0a; --ink-1: #0f0f0e;
+    --paper: #e9e6df;
+    --rule: rgba(233,230,223,.12);
+    --accent: #a8a8a2; --accent-dim: #6b6862;
+    --grade-a: #4ade80; --grade-b: #a3e635; --grade-c: #facc15;
+    --mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1200px; height: 630px; overflow: hidden; }
+  body {
+    background: var(--ink-0);
+    color: var(--paper);
+    font-family: var(--mono);
+    position: relative;
+  }
+  /* terminal grid + glow */
+  .grid {
+    position: absolute; inset: 0; z-index: 0;
+    background-image:
+      linear-gradient(to right, rgba(233,230,223,.03) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(233,230,223,.03) 1px, transparent 1px);
+    background-size: 56px 56px;
+    -webkit-mask-image: radial-gradient(ellipse 80% 70% at 30% 0%, #000 30%, transparent 75%);
+            mask-image: radial-gradient(ellipse 80% 70% at 30% 0%, #000 30%, transparent 75%);
+  }
+  .glow {
+    position: absolute; inset: 0 0 auto 0; height: 420px; z-index: 0;
+    background: radial-gradient(ellipse 55% 70% at 35% -10%, rgba(233,230,223,0.08), transparent);
+  }
+  .wrap {
+    position: relative; z-index: 1;
+    height: 100%;
+    display: grid;
+    grid-template-columns: 1.08fr 0.92fr;
+    align-items: center;
+    gap: 56px;
+    padding: 64px 72px;
+  }
+  /* left */
+  .badge {
+    display: inline-flex; align-items: center; gap: 10px;
+    border: 1px solid var(--rule);
+    padding: 7px 14px; font-size: 16px; color: rgba(233,230,223,.72);
+  }
+  .badge .dot { width: 7px; height: 7px; background: var(--accent); display: block; }
+  h1 {
+    margin-top: 30px;
+    font-size: 66px; font-weight: 700; line-height: 1.06; letter-spacing: -0.03em;
+  }
+  .sub {
+    margin-top: 26px; max-width: 30ch;
+    font-size: 21px; line-height: 1.55; color: rgba(233,230,223,.55);
+  }
+  .prompt {
+    margin-top: 40px; font-size: 22px; color: rgba(233,230,223,.7);
+  }
+  .prompt .sym { color: var(--accent); }
+  .prompt .cur { display: inline-block; width: 11px; height: 22px; background: var(--accent); transform: translateY(3px); margin-left: 4px; }
+  /* logo lockup top-left of card area handled in flow */
+  .brand {
+    position: absolute; top: 40px; right: 56px; z-index: 2;
+    display: flex; align-items: center; gap: 12px;
+    font-size: 20px; font-weight: 700; color: var(--paper);
+  }
+  .brand .mark { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid rgba(168,168,162,.45); color: var(--accent); font-weight: 700; font-size: 19px; }
+  /* right: mini report card */
+  .panel { border: 1px solid var(--rule); background: var(--ink-1); }
+  .panel-bar { display: flex; align-items: center; justify-content: space-between; padding: 12px 18px; border-bottom: 1px solid var(--rule); font-size: 15px; color: var(--accent-dim); }
+  .sqs { display: flex; gap: 7px; }
+  .sqs span { width: 12px; height: 12px; border: 1px solid rgba(233,230,223,.2); display: block; }
+  .ov { display: flex; align-items: flex-end; justify-content: space-between; padding: 26px 24px 22px; }
+  .ov .name { font-size: 14px; text-transform: uppercase; letter-spacing: .12em; color: var(--accent-dim); }
+  .ov .lab { margin-top: 6px; font-size: 16px; color: rgba(233,230,223,.7); }
+  .ov .big { font-size: 76px; font-weight: 700; line-height: .9; letter-spacing: -0.03em; color: var(--grade-a); text-align: right; }
+  .ov .scr { margin-top: 8px; font-size: 16px; color: var(--accent-dim); text-align: right; }
+  .rows { border-top: 1px solid var(--rule); font-size: 18px; }
+  .row { display: flex; align-items: center; justify-content: space-between; padding: 15px 24px; border-bottom: 1px solid rgba(233,230,223,.06); }
+  .row:last-child { border-bottom: 0; }
+  .row .k { color: rgba(233,230,223,.78); }
+  .row .v { display: flex; align-items: center; gap: 16px; color: var(--accent-dim); }
+  .gA { color: var(--grade-a); } .gB { color: var(--grade-b); } .gC { color: var(--grade-c); }
+  .url { position: absolute; bottom: 38px; left: 72px; z-index: 2; font-size: 18px; color: var(--accent-dim); }
+  .url .sym { color: var(--accent); }
+</style>
+</head>
+<body>
+  <div class="grid"></div>
+  <div class="glow"></div>
+
+  <div class="brand">
+    <span class="mark">A</span>
+    gradeskill
+  </div>
+
+  <div class="wrap">
+    <div>
+      <span class="badge"><span class="dot"></span> a claude code skill</span>
+      <h1>Grade your codebase like a report&nbsp;card.</h1>
+      <p class="sub">Letter grades, honest scores, and a prioritized fix list for your UI, backend, code, and UX.</p>
+      <p class="prompt"><span class="sym">$</span> /grade everything<span class="cur"></span></p>
+    </div>
+
+    <div class="panel">
+      <div class="panel-bar">
+        <span>report-card.html</span>
+        <span class="sqs"><span></span><span></span><span></span></span>
+      </div>
+      <div class="ov">
+        <div>
+          <div class="name">acme-dashboard</div>
+          <div class="lab">overall grade</div>
+        </div>
+        <div>
+          <div class="big">A-</div>
+          <div class="scr">91 / 100</div>
+        </div>
+      </div>
+      <div class="rows">
+        <div class="row"><span class="k">ui</span><span class="v">88 <span class="gB">[B+]</span></span></div>
+        <div class="row"><span class="k">backend</span><span class="v">90 <span class="gA">[A-]</span></span></div>
+        <div class="row"><span class="k">code</span><span class="v">93 <span class="gA">[A]</span></span></div>
+        <div class="row"><span class="k">ux</span><span class="v">84 <span class="gB">[B]</span></span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="url"><span class="sym">#</span> gradeskill.dev</div>
+</body>
+</html>
