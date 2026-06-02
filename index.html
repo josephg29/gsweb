@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="en" class="dark scroll-smooth">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Codebase Grader · grade your codebase like a report card</title>
+  <meta name="description" content="A Claude Code skill that grades your codebase with letter grades, honest scores, and a prioritized fix list for UI, backend, code, and UX." />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230a0a0a' stroke='%23e9e6df' stroke-width='2'/%3E%3Ctext x='16' y='23' font-family='monospace' font-size='18' font-weight='700' fill='%23e9e6df' text-anchor='middle'%3EA%3C/text%3E%3C/svg%3E" />
+
+  <!-- Open Graph / Twitter -->
+  <meta property="og:title" content="Codebase Grader" />
+  <meta property="og:description" content="Grade your codebase like a report card. Letter grades, honest scores, and a prioritized fix list, right inside Claude Code." />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary_large_image" />
+
+  <!--
+    Single-file landing page, OpenCode-style terminal / TUI aesthetic.
+    Static, no build step, so it can be served directly by GitHub Pages.
+    Uses the Tailwind Play CDN for convenience; convert to a compiled
+    Tailwind build for production. Monospace primary type via the system
+    mono stack (renders as SF Mono on macOS) to stay self-contained.
+  -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            // monospace is the PRIMARY typeface for this theme
+            sans: ['ui-monospace', 'SFMono-Regular', 'SF Mono', 'Menlo', 'Consolas', 'Liberation Mono', 'monospace'],
+            mono: ['ui-monospace', 'SFMono-Regular', 'SF Mono', 'Menlo', 'Consolas', 'Liberation Mono', 'monospace'],
+          },
+          colors: {
+            // grayscale "accent" (prompts, numbers, logo, hover) — no hue
+            accent: {
+              soft: '#ffffff',
+              DEFAULT: '#a8a8a2',
+              dim: '#6b6862',
+            },
+            // semantic grade scale, green (good) to red (bad) — the ONLY color
+            grade: {
+              a: '#4ade80',  // green
+              b: '#a3e635',  // lime
+              c: '#facc15',  // yellow
+              d: '#fb923c',  // orange
+              f: '#f87171',  // red
+            },
+            ink: {
+              0: '#0a0a0a',   // base (warm near-black, not pure #000)
+              1: '#0f0f0e',   // panel
+              2: '#141413',    // raised
+            },
+            paper: '#e9e6df',  // warm off-white text
+          },
+        },
+      },
+    };
+  </script>
+
+  <style>
+    :root { color-scheme: dark; }
+    body { background-color: #0a0a0a; }
+
+    /* terminal-snappy reveal (MOTION_INTENSITY 3). Honors reduced-motion. */
+    .reveal {
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity .45s ease, transform .45s ease;
+    }
+    .reveal.in { opacity: 1; transform: none; }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      .reveal { opacity: 1; transform: none; transition: none; }
+      .anim { animation: none !important; }
+    }
+
+    /* blinking cursor block */
+    @keyframes blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+    .cursor { animation: blink 1.1s steps(1) infinite; }
+    @media (prefers-reduced-motion: reduce) { .cursor { animation: none; opacity: 1; } }
+
+    /* faint terminal grid */
+    .bg-grid {
+      background-image:
+        linear-gradient(to right, rgba(233,230,223,.025) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(233,230,223,.025) 1px, transparent 1px);
+      background-size: 56px 56px;
+      mask-image: radial-gradient(ellipse 75% 55% at 50% 0%, #000 30%, transparent 72%);
+    }
+
+    /* TUI panel: thin border, sharp corners, optional corner label */
+    .panel { border: 1px solid rgba(233,230,223,.12); background: #0f0f0e; }
+  </style>
+</head>
+
+<body class="font-mono text-paper antialiased selection:bg-accent/25 selection:text-paper">
+
+  <!-- decorative background, non-interactive -->
+  <div aria-hidden="true" class="pointer-events-none fixed inset-0 -z-10 bg-grid"></div>
+  <div aria-hidden="true" class="pointer-events-none fixed inset-x-0 top-0 -z-10 h-[420px] bg-[radial-gradient(ellipse_55%_55%_at_50%_-12%,rgba(233,230,223,0.07),transparent)]"></div>
+
+  <!-- ───────────────────────── Nav (single line, ≤80px) ───────────────────────── -->
+  <header class="sticky top-0 z-50 border-b border-paper/10 bg-ink-0/80 backdrop-blur-md">
+    <nav class="mx-auto flex h-16 max-w-7xl items-center justify-between px-5 sm:px-8">
+      <a href="#top" class="flex items-center gap-2.5 text-sm font-bold tracking-tight text-paper">
+        <span class="grid h-7 w-7 place-items-center border border-accent/40 text-sm font-bold text-accent">A</span>
+        codebase-grader
+      </a>
+      <div class="hidden items-center gap-7 text-sm text-paper/55 md:flex">
+        <a href="#commands" class="transition-colors hover:text-paper">commands</a>
+        <a href="#how" class="transition-colors hover:text-paper">how-it-works</a>
+        <a href="#loop" class="transition-colors hover:text-paper">the-loop</a>
+      </div>
+      <a href="https://github.com/josephg29/gradeskill" target="_blank" rel="noopener"
+         class="inline-flex items-center gap-2 border border-paper/15 bg-paper px-3.5 py-2 text-sm font-bold text-ink-0 transition-colors duration-150 hover:bg-accent-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+        <svg viewBox="0 0 24 24" class="h-4 w-4" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.7.5.5 5.7.5 12c0 5.1 3.3 9.4 7.9 10.9.6.1.8-.3.8-.6v-2c-3.2.7-3.9-1.4-3.9-1.4-.5-1.3-1.3-1.7-1.3-1.7-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.7 1.3 3.4 1 .1-.8.4-1.3.7-1.6-2.6-.3-5.3-1.3-5.3-5.7 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0C17 4.7 18 5 18 5c.6 1.6.2 2.8.1 3.1.8.8 1.2 1.8 1.2 3.1 0 4.4-2.7 5.4-5.3 5.7.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6A11.5 11.5 0 0 0 23.5 12C23.5 5.7 18.3.5 12 .5Z"/></svg>
+        GitHub
+      </a>
+    </nav>
+  </header>
+
+  <!-- ───────────────────────── Hero (asymmetric split) ───────────────────────── -->
+  <main id="top">
+    <section class="mx-auto grid max-w-7xl items-center gap-12 px-5 pt-16 pb-20 sm:px-8 lg:grid-cols-[1.05fr_0.95fr] lg:gap-10 lg:pt-24">
+      <!-- left: copy -->
+      <div class="reveal">
+        <span class="inline-flex items-center gap-2 border border-paper/15 px-3 py-1 text-xs font-medium text-paper/70">
+          <span class="h-1.5 w-1.5 bg-accent"></span>
+          a claude code skill
+        </span>
+
+        <h1 class="mt-5 text-3xl font-bold leading-[1.1] tracking-tight text-paper sm:text-4xl lg:text-5xl">
+          Grade your codebase
+          <br class="hidden sm:block" />
+          like a <span class="text-paper">report card</span>.
+        </h1>
+
+        <p class="mt-5 max-w-[52ch] text-sm leading-relaxed text-paper/55 sm:text-base">
+          Letter grades, honest scores, and a prioritized fix list for your
+          UI, backend, code, and UX.
+        </p>
+
+        <div class="mt-8 flex flex-wrap items-center gap-3">
+          <a href="https://github.com/josephg29/gradeskill" target="_blank" rel="noopener"
+             class="inline-flex items-center gap-2 bg-paper px-5 py-3 text-sm font-bold text-ink-0 transition-colors duration-150 hover:bg-accent-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-ink-0">
+            View on GitHub
+            <svg viewBox="0 0 20 20" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M5 10h10M11 6l4 4-4 4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </a>
+          <a href="#commands"
+             class="inline-flex items-center gap-2 border border-paper/15 px-5 py-3 text-sm font-bold text-paper transition-colors duration-150 hover:border-paper/30 hover:bg-paper/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+            See the commands
+          </a>
+        </div>
+
+        <p class="mt-6 text-xs text-paper/45">
+          <span class="text-accent">$</span> /grade everything<span class="cursor ml-0.5 inline-block h-3.5 w-2 translate-y-0.5 bg-accent"></span>
+        </p>
+      </div>
+
+      <!-- right: REAL mini report card as a TUI panel (actual product output) -->
+      <div class="reveal" style="transition-delay:.06s">
+        <div class="panel">
+          <!-- panel title bar -->
+          <div class="flex items-center justify-between border-b border-paper/10 px-4 py-2.5 text-xs text-paper/45">
+            <span>report-card.html</span>
+            <span class="flex gap-1.5">
+              <span class="h-2.5 w-2.5 border border-paper/20"></span>
+              <span class="h-2.5 w-2.5 border border-paper/20"></span>
+              <span class="h-2.5 w-2.5 border border-paper/20"></span>
+            </span>
+          </div>
+
+          <!-- overall -->
+          <div class="flex items-end justify-between px-5 py-5">
+            <div>
+              <p class="text-xs uppercase tracking-wider text-paper/40">acme-dashboard</p>
+              <p class="mt-1 text-sm text-paper/70">overall grade</p>
+            </div>
+            <div class="text-right">
+              <div class="text-5xl font-bold leading-none tracking-tight text-grade-a">A-</div>
+              <div class="mt-1.5 text-xs text-paper/45">91 / 100</div>
+            </div>
+          </div>
+
+          <!-- category rows (monochrome bracketed grades) -->
+          <ul class="border-t border-paper/10 text-sm">
+            <li class="flex items-center justify-between border-b border-paper/[0.06] px-5 py-3">
+              <span class="text-paper/75">ui</span>
+              <span class="flex items-center gap-4 text-paper/45">88 <span class="text-grade-b">[B+]</span></span>
+            </li>
+            <li class="flex items-center justify-between border-b border-paper/[0.06] px-5 py-3">
+              <span class="text-paper/75">backend</span>
+              <span class="flex items-center gap-4 text-paper/45">90 <span class="text-grade-a">[A-]</span></span>
+            </li>
+            <li class="flex items-center justify-between border-b border-paper/[0.06] px-5 py-3">
+              <span class="text-paper/75">code</span>
+              <span class="flex items-center gap-4 text-paper/45">93 <span class="text-grade-a">[A]</span></span>
+            </li>
+            <li class="flex items-center justify-between px-5 py-3">
+              <span class="text-paper/75">ux</span>
+              <span class="flex items-center gap-4 text-paper/45">84 <span class="text-grade-b">[B]</span></span>
+            </li>
+          </ul>
+
+          <!-- top fix -->
+          <div class="border-t border-paper/10 px-5 py-4">
+            <p class="text-xs uppercase tracking-wider text-paper/40"># top fix</p>
+            <p class="mt-1.5 text-sm leading-relaxed text-paper/70">
+              Settings page buttons use inconsistent label casing. Normalize to sentence case.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───────────────────────── Commands (terminal + category grid) ───────────────────────── -->
+    <section id="commands" class="mx-auto max-w-7xl px-5 py-20 sm:px-8">
+      <div class="reveal grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
+        <!-- left: heading + terminal -->
+        <div>
+          <h2 class="text-2xl font-bold tracking-tight text-paper sm:text-3xl">
+            One command. Five lenses.
+          </h2>
+          <p class="mt-4 max-w-[50ch] text-sm leading-relaxed text-paper/55">
+            Grade a single dimension or the whole project. Add a modifier to fix
+            issues, or loop until the score stops climbing.
+          </p>
+
+          <div class="panel mt-7 overflow-hidden text-sm shadow-xl shadow-black/40">
+            <div class="flex items-center gap-2 border-b border-paper/10 px-4 py-2.5 text-xs text-paper/40">
+              <span class="h-2.5 w-2.5 border border-paper/20"></span>
+              <span class="h-2.5 w-2.5 border border-paper/20"></span>
+              <span class="h-2.5 w-2.5 border border-paper/20"></span>
+              <span class="ml-1">claude-code</span>
+            </div>
+            <div class="space-y-2 px-4 py-4 leading-relaxed">
+              <p><span class="text-accent">$</span> <span class="text-paper">/grade ui</span></p>
+              <p class="text-paper/45">  grade the rendered frontend, open the report</p>
+              <p class="pt-2"><span class="text-accent">$</span> <span class="text-paper">/grade code revise</span></p>
+              <p class="text-paper/45">  grade, then fix the issues in one pass</p>
+              <p class="pt-2"><span class="text-accent">$</span> <span class="text-paper">/grade everything loop 3</span></p>
+              <p class="text-paper/45">  grade, fix, regrade, repeat up to 3 rounds</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- right: category grid (asymmetric, varied fills) -->
+        <div class="grid gap-px border border-paper/10 bg-paper/10 sm:grid-cols-2">
+          <div class="bg-[linear-gradient(135deg,rgba(233,230,223,0.06),transparent)] bg-ink-1 p-5">
+            <h3 class="text-sm font-bold text-paper">ui</h3>
+            <p class="mt-1.5 text-sm leading-relaxed text-paper/55">Screenshots the running app at three viewports and grades the pixels, not the JSX.</p>
+          </div>
+          <div class="bg-ink-1 p-5">
+            <h3 class="text-sm font-bold text-paper">backend</h3>
+            <p class="mt-1.5 text-sm leading-relaxed text-paper/55">Routes, models, auth, and error handling, reviewed across the server tree.</p>
+          </div>
+          <div class="bg-ink-1 p-5">
+            <h3 class="text-sm font-bold text-paper">code</h3>
+            <p class="mt-1.5 text-sm leading-relaxed text-paper/55">Structure, naming, duplication, file size, and test coverage across the repo.</p>
+          </div>
+          <div class="bg-[linear-gradient(135deg,rgba(233,230,223,0.06),transparent)] bg-ink-1 p-5">
+            <h3 class="text-sm font-bold text-paper">ux</h3>
+            <p class="mt-1.5 text-sm leading-relaxed text-paper/55">Drives the real flows with Playwright. Clicks, load times, and feedback.</p>
+          </div>
+          <div class="bg-ink-2 p-5 sm:col-span-2">
+            <div class="flex items-center justify-between">
+              <h3 class="text-sm font-bold text-paper">everything</h3>
+              <span class="border border-accent/40 px-2 py-0.5 text-xs font-bold text-accent">GPA</span>
+            </div>
+            <p class="mt-1.5 text-sm leading-relaxed text-paper/55">Runs all four and rolls them into one report with an overall grade point average.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───────────────────────── How it works (3-step flow) ───────────────────────── -->
+    <section id="how" class="border-y border-paper/10 bg-paper/[0.012]">
+      <div class="mx-auto max-w-7xl px-5 py-20 sm:px-8">
+        <h2 class="reveal text-2xl font-bold tracking-tight text-paper sm:text-3xl">From repo to report card</h2>
+        <div class="mt-12 grid gap-px border border-paper/10 bg-paper/10 md:grid-cols-3">
+          <div class="reveal bg-ink-0 p-7">
+            <span class="text-sm text-accent">01</span>
+            <h3 class="mt-3 text-base font-bold text-paper">Detect</h3>
+            <p class="mt-2 text-sm leading-relaxed text-paper/55">Inspects the stack and project shape, so a landing page is not judged like a full-stack app.</p>
+          </div>
+          <div class="reveal bg-ink-0 p-7" style="transition-delay:.06s">
+            <span class="text-sm text-accent">02</span>
+            <h3 class="mt-3 text-base font-bold text-paper">Grade</h3>
+            <p class="mt-2 text-sm leading-relaxed text-paper/55">Scores each dimension against a detailed rubric, so grades stay consistent run to run.</p>
+          </div>
+          <div class="reveal bg-ink-0 p-7" style="transition-delay:.12s">
+            <span class="text-sm text-accent">03</span>
+            <h3 class="mt-3 text-base font-bold text-paper">Report</h3>
+            <p class="mt-2 text-sm leading-relaxed text-paper/55">Writes a styled HTML report card with strengths, weaknesses, and a ranked fix list.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───────────────────────── The loop (full-width feature) ───────────────────────── -->
+    <section id="loop" class="mx-auto max-w-7xl px-5 py-20 sm:px-8">
+      <div class="reveal grid items-center gap-12 lg:grid-cols-2">
+        <div class="min-w-0">
+          <h2 class="text-2xl font-bold tracking-tight text-paper sm:text-3xl">Drive the score up, honestly.</h2>
+          <p class="mt-4 max-w-[50ch] text-sm leading-relaxed text-paper/55">
+            The loop runs grade, fix, then regrades with a fresh agent that has no
+            memory of prior rounds. Improvements are measured, not graded on a curve.
+            It stops when the score plateaus.
+          </p>
+          <ul class="mt-6 space-y-3 text-sm text-paper/75">
+            <li class="flex items-start gap-3">
+              <span class="mt-0.5 flex-none text-accent">+</span>
+              Fresh subagent per round removes self-grading bias
+            </li>
+            <li class="flex items-start gap-3">
+              <span class="mt-0.5 flex-none text-accent">+</span>
+              Stops on plateau, or after a round cap you set
+            </li>
+            <li class="flex items-start gap-3">
+              <span class="mt-0.5 flex-none text-accent">+</span>
+              Flags regressions if a fix makes things worse
+            </li>
+          </ul>
+        </div>
+
+        <!-- grade progression (real output, monochrome with accent on final) -->
+        <div class="panel min-w-0 p-5 sm:p-6">
+          <p class="text-xs uppercase tracking-wider text-paper/40"># score progression</p>
+          <div class="mt-5 flex items-end justify-between gap-2 sm:gap-3">
+            <div class="text-center">
+              <div class="border border-grade-c/40 px-2.5 py-2 text-xl font-bold text-grade-c sm:px-3 sm:text-2xl">[C]</div>
+              <p class="mt-2 text-xs text-paper/40">r1 · 72</p>
+            </div>
+            <span class="mb-6 flex-none text-paper/30">&gt;&gt;</span>
+            <div class="text-center">
+              <div class="border border-grade-b/40 px-2.5 py-2 text-xl font-bold text-grade-b sm:px-3 sm:text-2xl">[B+]</div>
+              <p class="mt-2 text-xs text-paper/40">r2 · 87</p>
+            </div>
+            <span class="mb-6 flex-none text-paper/30">&gt;&gt;</span>
+            <div class="text-center">
+              <div class="border border-grade-a/40 px-2.5 py-2 text-xl font-bold text-grade-a sm:px-3 sm:text-2xl">[A-]</div>
+              <p class="mt-2 text-xs text-paper/40">r3 · 91</p>
+            </div>
+          </div>
+          <p class="mt-6 border-t border-paper/10 pt-4 text-xs text-paper/40">
+            <span class="text-accent">$</span> plateau reached, stopping at round 3
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───────────────────────── Final CTA (centered, install) ───────────────────────── -->
+    <section class="mx-auto max-w-3xl px-5 pb-24 pt-6 text-center sm:px-8">
+      <div class="reveal panel p-10 sm:p-14">
+        <h2 class="text-2xl font-bold tracking-tight text-paper sm:text-3xl">Drop it in and grade.</h2>
+        <p class="mx-auto mt-4 max-w-[48ch] text-sm leading-relaxed text-paper/55">
+          Clone into your Claude Code skills folder, start a session, and run a
+          grade command in any project.
+        </p>
+
+        <div class="mx-auto mt-7 flex max-w-xl items-center gap-2 border border-paper/15 bg-ink-0 px-4 py-3 text-left text-sm">
+          <span class="flex-none text-accent">$</span>
+          <code id="install-cmd" class="flex-1 overflow-x-auto whitespace-nowrap text-paper">git clone https://github.com/josephg29/gradeskill.git ~/.claude/skills/codebase-grader</code>
+          <button type="button" id="copy-btn"
+                  class="flex-none border border-paper/15 px-2.5 py-1 text-xs text-paper/55 transition-colors hover:bg-paper/10 hover:text-paper focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                  aria-label="Copy install command">copy</button>
+        </div>
+
+        <div class="mt-7">
+          <a href="https://github.com/josephg29/gradeskill" target="_blank" rel="noopener"
+             class="inline-flex items-center gap-2 bg-paper px-5 py-3 text-sm font-bold text-ink-0 transition-colors duration-150 hover:bg-accent-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-ink-0">
+            View on GitHub
+            <svg viewBox="0 0 20 20" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M5 10h10M11 6l4 4-4 4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ───────────────────────── Footer ───────────────────────── -->
+  <footer class="border-t border-paper/10">
+    <div class="mx-auto flex max-w-7xl flex-col items-center justify-between gap-3 px-5 py-8 text-sm text-paper/40 sm:flex-row sm:px-8">
+      <p class="flex items-center gap-2">
+        <span class="grid h-5 w-5 place-items-center border border-accent/40 text-[10px] font-bold text-accent">A</span>
+        codebase-grader
+      </p>
+      <p>MIT licensed. Built for Claude Code.</p>
+    </div>
+  </footer>
+
+  <script>
+    // Scroll-reveal via IntersectionObserver (no scroll listeners).
+    (function () {
+      const els = document.querySelectorAll('.reveal');
+      const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (reduce || !('IntersectionObserver' in window)) {
+        els.forEach((el) => el.classList.add('in'));
+        return;
+      }
+      const io = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('in');
+            io.unobserve(entry.target);
+          }
+        });
+      }, { threshold: 0, rootMargin: '0px 0px -8% 0px' });
+      els.forEach((el) => io.observe(el));
+    })();
+
+    // Copy install command.
+    (function () {
+      const btn = document.getElementById('copy-btn');
+      const code = document.getElementById('install-cmd');
+      if (!btn || !code) return;
+      btn.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(code.textContent.trim());
+          const prev = btn.textContent;
+          btn.textContent = 'copied';
+          setTimeout(() => { btn.textContent = prev; }, 1600);
+        } catch (e) {
+          btn.textContent = 'failed';
+          setTimeout(() => { btn.textContent = 'copy'; }, 1600);
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
